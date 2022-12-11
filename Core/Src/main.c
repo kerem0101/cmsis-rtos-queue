@@ -22,7 +22,9 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "stdio.h"
+#include "stdint.h"
+#include "string.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -32,6 +34,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define uartPrint(__message)                    HAL_UART_Transmit(&huart2,(uint8_t *)__message,strlen(__message),1000)
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -42,7 +45,8 @@
 /* Private variables ---------------------------------------------------------*/
  UART_HandleTypeDef huart2;
 
-osThreadId defaultTaskHandle;
+osThreadId SenderTaskHandle;
+osThreadId ReceiverTaskHandle;
 osMessageQId myQueueHandle;
 /* USER CODE BEGIN PV */
 
@@ -52,7 +56,8 @@ osMessageQId myQueueHandle;
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
-void StartDefaultTask(void const * argument);
+void Sender(void const * argument);
+void Receiver(void const * argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -118,9 +123,13 @@ int main(void)
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
-  /* definition and creation of defaultTask */
-  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
-  defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
+  /* definition and creation of SenderTask */
+  osThreadDef(SenderTask, Sender, osPriorityNormal, 0, 128);
+  SenderTaskHandle = osThreadCreate(osThread(SenderTask), NULL);
+
+  /* definition and creation of ReceiverTask */
+  osThreadDef(ReceiverTask, Receiver, osPriorityNormal, 0, 128);
+  ReceiverTaskHandle = osThreadCreate(osThread(ReceiverTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -229,20 +238,20 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOA_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pin : PC13 */
-  GPIO_InitStruct.Pin = GPIO_PIN_13;
+  /*Configure GPIO pin : B1_Pin */
+  GPIO_InitStruct.Pin = B1_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+  HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : PA5 */
-  GPIO_InitStruct.Pin = GPIO_PIN_5;
+  /*Configure GPIO pin : LD2_Pin */
+  GPIO_InitStruct.Pin = LD2_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+  HAL_GPIO_Init(LD2_GPIO_Port, &GPIO_InitStruct);
 
 }
 
@@ -250,22 +259,56 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE END 4 */
 
-/* USER CODE BEGIN Header_StartDefaultTask */
+/* USER CODE BEGIN Header_Sender */
 /**
-  * @brief  Function implementing the defaultTask thread.
+  * @brief  Function implementing the SenderTask thread.
   * @param  argument: Not used
   * @retval None
   */
-/* USER CODE END Header_StartDefaultTask */
-void StartDefaultTask(void const * argument)
+/* USER CODE END Header_Sender */
+void Sender(void const * argument)
 {
   /* USER CODE BEGIN 5 */
+	//osDelay(2000);
+	uint32_t sendVal;
+	for(uint32_t i = 1; i<=10; ++i){
+		sendVal = i*10;
+		osMessagePut(myQueueHandle, sendVal, 100);
+	}
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
+
   }
   /* USER CODE END 5 */
+}
+
+/* USER CODE BEGIN Header_Receiver */
+/**
+* @brief Function implementing the ReceiverTask thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_Receiver */
+void Receiver(void const * argument)
+{
+  /* USER CODE BEGIN Receiver */
+  /* Infinite loop */
+	osEvent message;
+	char string[50];
+  for(;;)
+  {
+	  message = osMessageGet(myQueueHandle, 5000);
+	  if(message.status == osEventMessage){
+		  sprintf(string, "Recieved value: %u\r\n", message.value.v);
+
+		  uartPrint(string);
+	  }
+	  else{
+		  uartPrint("Queue is empty!\r\n");
+	  }
+  }
+  /* USER CODE END Receiver */
 }
 
 /**
